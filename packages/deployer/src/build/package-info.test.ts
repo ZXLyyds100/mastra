@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getPackageMetadata, getPackageRootPath } from './package-info';
+import { getPackageInfo, getPackageMetadata, getPackageRootPath } from './package-info';
 
 const tempDirs: string[] = [];
 
@@ -24,6 +24,70 @@ async function createTempPackage() {
 
   return { tempDir, packageDir, chunkFile };
 }
+
+async function createWorkspacePackage(version: string | undefined, nestedManifest = false) {
+  const tempRoot = join(process.cwd(), '.tmp');
+  await mkdir(tempRoot, { recursive: true });
+  const tempDir = await mkdtemp(join(tempRoot, 'workspace-package-'));
+  tempDirs.push(tempDir);
+
+  const appDir = join(tempDir, 'app');
+  const packageDir = join(tempDir, 'packages', 'dependency');
+  const entryDir = join(packageDir, nestedManifest ? 'dist' : 'src');
+  const entry = nestedManifest ? './dist/index.js' : './src/index.ts';
+  await mkdir(join(appDir, 'node_modules', '@repro'), { recursive: true });
+  await mkdir(entryDir, { recursive: true });
+  await writeFile(join(tempDir, 'package.json'), JSON.stringify({ name: 'workspace-root', version: '1.0.0' }));
+  await writeFile(
+    join(appDir, 'package.json'),
+    JSON.stringify({ name: '@repro/app', version: '1.0.0', type: 'module', exports: { '.': './index.js' } }),
+  );
+  await writeFile(join(appDir, 'index.js'), "import '@repro/dependency';");
+  await writeFile(
+    join(packageDir, 'package.json'),
+    JSON.stringify({ name: '@repro/dependency', private: true, version, type: 'module', exports: { '.': entry } }),
+  );
+  await writeFile(join(packageDir, entry), 'export const value = 42;');
+  if (nestedManifest) {
+    await writeFile(join(entryDir, 'package.json'), JSON.stringify({ type: 'module' }));
+  }
+  await symlink(packageDir, join(appDir, 'node_modules', '@repro', 'dependency'), 'junction');
+
+  return { appDir, packageDir };
+}
+
+describe('getPackageInfo', () => {
+  const versions = [
+    { label: 'versionless', version: undefined },
+    { label: 'versioned', version: '1.0.0' },
+  ];
+
+  it.each(versions)('retains the root of a $label workspace package', async ({ version }) => {
+    const { appDir, packageDir } = await createWorkspacePackage(version);
+    const parentPath = join(appDir, 'index.js');
+
+    await expect(getPackageInfo('@repro/dependency', { paths: [appDir] })).resolves.toMatchObject({
+      name: '@repro/dependency',
+      rootPath: packageDir,
+      packageJson: { name: '@repro/dependency', exports: { '.': './src/index.ts' } },
+    });
+    await expect(getPackageRootPath('@repro/dependency', parentPath)).resolves.toBe(packageDir);
+    await expect(getPackageMetadata('@repro/dependency', parentPath)).resolves.toMatchObject({
+      rootPath: packageDir,
+      ...(version ? { version } : {}),
+    });
+  });
+
+  it.each(versions)('searches past a nameless nested manifest for a $label package', async ({ version }) => {
+    const { appDir, packageDir } = await createWorkspacePackage(version, true);
+
+    await expect(getPackageInfo('@repro/dependency', { paths: [appDir] })).resolves.toMatchObject({
+      name: '@repro/dependency',
+      rootPath: packageDir,
+      packageJson: { name: '@repro/dependency', exports: { '.': './dist/index.js' } },
+    });
+  });
+});
 
 describe('getPackageRootPath', () => {
   it('resolves a package when parentPath points to a file instead of a directory', async () => {

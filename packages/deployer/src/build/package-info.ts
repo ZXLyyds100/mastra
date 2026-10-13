@@ -28,7 +28,7 @@ export async function getPackageInfo(
 
     const pkgJson = await readJson(path);
 
-    if (!pkgJson.version) {
+    if (!pkgJson.version && !pkgJson.name) {
       return searchUpForPackageJson(dirname(rootPath));
     }
 
@@ -41,7 +41,9 @@ export async function getPackageInfo(
     };
   }
 
-  if (!pkgInfo?.version && pkgInfo?.rootPath) {
+  // A named private workspace package can omit version. Only search past
+  // metadata-only manifests, such as a dist/package.json containing type.
+  if (!pkgInfo?.version && !pkgInfo?.packageJson.name && pkgInfo?.rootPath) {
     return searchUpForPackageJson(dirname(pkgInfo.rootPath));
   }
 

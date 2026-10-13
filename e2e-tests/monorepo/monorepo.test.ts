@@ -7,6 +7,7 @@ import { tmpdir } from 'os';
 import getPort from 'get-port';
 import { execa, execaNode } from 'execa';
 import { glob } from 'tinyglobby';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const timeout = 5 * 60 * 1000;
 
@@ -128,6 +129,121 @@ process.once('SIGTERM', async () => {
   await cleanupAllProcesses();
   process.exit(143);
 });
+
+it.each([
+  { label: 'versionless', version: undefined },
+  { label: 'versioned', version: '0.0.0' },
+])(
+  'starts dev with a $label TypeScript workspace dependency and an app exports map',
+  async ({ version }) => {
+    const root = await mkdtemp(join(tmpdir(), 'mastra-workspace-version-'));
+    const app = join(root, 'app');
+    const dependency = join(root, 'packages', 'dependency');
+    const registry = inject('registry');
+    const tag = inject('tag');
+    const port = await getPort();
+    const controller = new AbortController();
+    let proc: ReturnType<typeof execa> | undefined;
+    let logs = '';
+
+    try {
+      await mkdir(join(app, 'src', 'mastra'), { recursive: true });
+      await mkdir(join(dependency, 'src'), { recursive: true });
+      await writeFile(join(root, 'package.json'), JSON.stringify({ private: true }));
+      await writeFile(
+        join(root, 'pnpm-workspace.yaml'),
+        "packages:\n  - 'app'\n  - 'packages/*'\nallowBuilds:\n  esbuild: true\n",
+      );
+      await writeFile(
+        join(app, 'package.json'),
+        JSON.stringify({
+          name: '@repro/app',
+          version: '1.0.0',
+          private: true,
+          type: 'module',
+          exports: { '.': './src/mastra/index.ts' },
+          dependencies: { '@mastra/core': tag, '@repro/dependency': 'workspace:*', zod: '^4.0.0' },
+          devDependencies: { mastra: tag },
+        }),
+      );
+      await writeFile(
+        join(dependency, 'package.json'),
+        JSON.stringify({
+          name: '@repro/dependency',
+          private: true,
+          version,
+          type: 'module',
+          exports: { '.': './src/index.ts' },
+        }),
+      );
+      await writeFile(join(dependency, 'src', 'index.ts'), "export const value: string = 'workspace dependency';\n");
+      await writeFile(
+        join(app, 'src', 'mastra', 'index.ts'),
+        `import { Mastra } from '@mastra/core/mastra';
+import { registerApiRoute } from '@mastra/core/server';
+import { value } from '@repro/dependency';
+
+export const mastra = new Mastra({
+  server: {
+    port: ${port},
+    apiRoutes: [registerApiRoute('/workspace-value', { method: 'GET', handler: async c => c.json({ value }) })],
+  },
+});
+`,
+      );
+      await execa('pnpm', ['install', '--registry', registry, '--config.minimum-release-age=0'], { cwd: root });
+      proc = execa('mastra', ['dev'], {
+        cwd: app,
+        preferLocal: true,
+        all: true,
+        cancelSignal: controller.signal,
+        env: { PORT: port.toString() },
+      });
+      proc.all?.on('data', data => {
+        logs += data.toString();
+      });
+      activeProcesses.push({ controller, proc });
+
+      const waitForRoute = async () => {
+        while (!controller.signal.aborted) {
+          if (/\bERROR\b|Error \[ERR_/.test(logs)) {
+            throw new Error(`Dev server failed to start:\n${logs}`);
+          }
+          try {
+            const response = await fetch(`http://localhost:${port}/workspace-value`, {
+              signal: AbortSignal.any([controller.signal, AbortSignal.timeout(1_000)]),
+            });
+            if (response.status === 200) return response;
+          } catch {
+            if (controller.signal.aborted) break;
+          }
+          await delay(250, undefined, { signal: controller.signal });
+        }
+        throw new Error('Dev server readiness check was cancelled');
+      };
+
+      const response = await Promise.race([
+        waitForRoute(),
+        proc.then(result => {
+          throw new Error(`Dev server exited before serving the workspace dependency:\n${result.all}`);
+        }),
+        delay(120_000, undefined, { signal: controller.signal }).then(() => {
+          throw new Error(`Timed out waiting for the workspace dependency route:\n${logs}`);
+        }),
+      ]);
+      await expect(response.json()).resolves.toEqual({ value: 'workspace dependency' });
+    } finally {
+      controller.abort();
+      if (proc) {
+        proc.kill('SIGKILL');
+        await proc.catch(() => {});
+      }
+      await killOrphanedDevServer(app);
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  timeout,
+);
 
 describe.sequential.for([['pnpm'] as const])(`%s monorepo`, ([pkgManager]) => {
   let fixturePath: string;
