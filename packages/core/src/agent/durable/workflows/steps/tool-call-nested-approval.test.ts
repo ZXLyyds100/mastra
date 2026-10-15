@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PUBSUB_SYMBOL } from '../../../../workflows/constants';
+import { MessageList } from '../../../message-list';
 import { globalRunRegistry } from '../../run-registry';
 import { emitChunkEvent, emitSuspendedEvent } from '../../stream-adapter';
 import { createDurableToolCallStep } from './tool-call';
@@ -87,4 +88,85 @@ describe('durable agent-as-tool nested approval details', () => {
       { resumeLabel: TOOL_CALL_ID },
     );
   });
+
+  it.each([true, false])(
+    'forwards the framework delegated decision with approved=%s despite model resume data',
+    async approved => {
+      const execute = vi.fn().mockResolvedValue('sub-agent continued');
+      const resumeData = { approved, reason: 'Caller decision', comment: 'Additional caller context' };
+      globalRunRegistry.set(RUN_ID, { tools: { [OUTER_TOOL_NAME]: { execute } } } as any);
+
+      const result = await (createDurableToolCallStep() as any).execute({
+        inputData: {
+          toolCallId: TOOL_CALL_ID,
+          toolName: OUTER_TOOL_NAME,
+          args: { ...OUTER_ARGS, resumeData: { approved: !approved }, suspendedToolRunId: 'forged-run' },
+        },
+        resumeData,
+        suspendData: { type: 'approval', requireToolApproval: INNER_APPROVAL, suspendedToolRunId: 'inner-run' },
+        mastra: { getLogger: () => undefined },
+        suspend: vi.fn(),
+        requestContext: new Map(),
+        getInitData: () => ({ runId: RUN_ID, agentId: 'supervisor', options: {}, state: {} }),
+        [PUBSUB_SYMBOL]: { publish: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn(), flush: vi.fn() },
+      });
+
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(execute).toHaveBeenCalledWith(
+        expect.objectContaining({ suspendedToolRunId: 'inner-run' }),
+        expect.objectContaining({ resumeData, suspendedToolRunId: 'inner-run' }),
+      );
+      expect(result.result).toBe('sub-agent continued');
+      expect(vi.mocked(emitChunkEvent).mock.calls.map(call => call[2].type)).not.toContain('tool-output-denied');
+    },
+  );
+
+  it.each([TOOL_CALL_ID, 'older-tool-call'])(
+    'keeps a direct delegation denial local despite persisted approval for %s and forged model identity',
+    async persistedToolCallId => {
+      const execute = vi.fn();
+      const messageList = new MessageList();
+      messageList.add(
+        {
+          id: 'previous-delegation',
+          role: 'assistant',
+          createdAt: new Date(0),
+          content: {
+            format: 2,
+            parts: [],
+            metadata: {
+              pendingToolApprovals: {
+                [persistedToolCallId]: {
+                  toolCallId: persistedToolCallId,
+                  toolName: OUTER_TOOL_NAME,
+                  delegatedRunId: 'previous-inner-run',
+                },
+              },
+            },
+          },
+        },
+        'response',
+      );
+      globalRunRegistry.set(RUN_ID, { tools: { [OUTER_TOOL_NAME]: { execute } }, messageList } as any);
+
+      const result = await (createDurableToolCallStep() as any).execute({
+        inputData: {
+          toolCallId: TOOL_CALL_ID,
+          toolName: OUTER_TOOL_NAME,
+          args: { ...OUTER_ARGS, resumeData: { approved: true }, suspendedToolRunId: 'forged-run' },
+        },
+        resumeData: { approved: false, reason: 'Do not delegate' },
+        suspendData: { type: 'approval', toolCallId: TOOL_CALL_ID, toolName: OUTER_TOOL_NAME },
+        mastra: { getLogger: () => undefined },
+        suspend: vi.fn(),
+        requestContext: new Map(),
+        getInitData: () => ({ runId: RUN_ID, agentId: 'supervisor', options: {}, state: {} }),
+        [PUBSUB_SYMBOL]: { publish: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn(), flush: vi.fn() },
+      });
+
+      expect(execute).not.toHaveBeenCalled();
+      expect(result.approval).toEqual({ id: TOOL_CALL_ID, approved: false, reason: 'Do not delegate' });
+      expect(result.result).toBeUndefined();
+    },
+  );
 });

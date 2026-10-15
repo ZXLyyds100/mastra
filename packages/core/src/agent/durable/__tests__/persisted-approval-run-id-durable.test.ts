@@ -30,6 +30,8 @@ import { DurableStepIds } from '../constants';
 import { createDurableAgent } from '../create-durable-agent';
 import { globalRunRegistry } from '../run-registry';
 
+const DECLINE_REASON = 'Access to the secret has not been authorized.';
+
 /**
  * Sub-agent model: content-driven so a rebuilt instance (simulated restart)
  * behaves identically — calls the approval-gated tool until its result is in
@@ -38,8 +40,10 @@ import { globalRunRegistry } from '../run-registry';
 function makeSubAgentModel() {
   return new MockLanguageModelV2({
     doStream: async ({ prompt }) => {
-      const hasToolResult = JSON.stringify(prompt).includes('classified-42');
-      if (!hasToolResult) {
+      const promptText = JSON.stringify(prompt);
+      const hasToolResult = promptText.includes('classified-42');
+      const wasDeclined = promptText.includes(DECLINE_REASON);
+      if (!hasToolResult && !wasDeclined) {
         return {
           rawCall: { rawPrompt: null, rawSettings: {} },
           warnings: [],
@@ -69,7 +73,7 @@ function makeSubAgentModel() {
           { type: 'stream-start', warnings: [] },
           { type: 'response-metadata', id: 'sub-1', modelId: 'mock-model', timestamp: new Date(0) },
           { type: 'text-start', id: 'sub-text' },
-          { type: 'text-delta', id: 'sub-text', delta: 'Secret retrieved.' },
+          { type: 'text-delta', id: 'sub-text', delta: wasDeclined ? 'Secret request declined.' : 'Secret retrieved.' },
           { type: 'text-end', id: 'sub-text' },
           { type: 'finish', finishReason: 'stop', usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 } },
         ]),
@@ -82,7 +86,9 @@ function makeSubAgentModel() {
 function makeSupervisorModel() {
   return new MockLanguageModelV2({
     doStream: async ({ prompt }) => {
-      const hasDelegationResult = JSON.stringify(prompt).includes('Secret retrieved');
+      const promptText = JSON.stringify(prompt);
+      const hasDelegationResult =
+        promptText.includes('Secret retrieved') || promptText.includes('Secret request declined');
       if (!hasDelegationResult) {
         return {
           rawCall: { rawPrompt: null, rawSettings: {} },
@@ -210,6 +216,7 @@ describe('durable delegated approval persisted runId', () => {
   const drainAndAssertResumed = async (
     resumed: { fullStream: AsyncIterable<any> },
     toolExecutions: { count: number },
+    approved = true,
   ) => {
     const types: string[] = [];
     let finalText = '';
@@ -238,37 +245,44 @@ describe('durable delegated approval persisted runId', () => {
       types.filter(t => t === 'tool-call'),
       label,
     ).toHaveLength(0);
-    // The approved tool executed exactly once across the whole flow.
-    expect(toolExecutions.count).toBe(1);
+    // A declined inner tool never executes, but the sub-agent still returns its answer.
+    expect(toolExecutions.count).toBe(approved ? 1 : 0);
+    expect(delegationResults).toHaveLength(1);
+    if (!approved) {
+      expect(JSON.stringify(delegationResults[0])).toContain('Secret request declined.');
+    }
     expect(finalText).toBe('Delegation complete.');
   };
 
-  it('persists the outer runId with delegatedRunId and resumes in-process', async () => {
-    const storage = new InMemoryStore();
-    const mockMemory = new MockMemory();
-    const memory = { thread: 'durable-approval-thread', resource: 'durable-approval-resource' };
-    const toolExecutions = { count: 0 };
+  it.each([true, false])(
+    'resumes in-process with approved=%s',
+    async approved => {
+      const storage = new InMemoryStore();
+      const mockMemory = new MockMemory();
+      const memory = { thread: 'durable-approval-thread', resource: 'durable-approval-resource' };
+      const toolExecutions = { count: 0 };
 
-    const durableAgent = createDurableAgent({ agent: buildSupervisor(mockMemory, toolExecutions), pubsub });
-    new Mastra({ agents: { durableAgent }, storage, logger: false });
+      const durableAgent = createDurableAgent({ agent: buildSupervisor(mockMemory, toolExecutions), pubsub });
+      new Mastra({ agents: { durableAgent }, storage, logger: false });
 
-    const outerRunId = await runToApproval(durableAgent, memory, storage);
+      const outerRunId = await runToApproval(durableAgent, memory, storage);
 
-    const entry = await getApprovalEntry(mockMemory, memory);
-    // The persisted pair targets the outer resumable durable run; the inner
-    // suspended sub-agent run is preserved separately.
-    expect(entry.runId).toBe(outerRunId);
-    expect(entry.delegatedRunId).toBeDefined();
-    expect(entry.delegatedRunId).not.toBe(entry.runId);
-    expect(toolExecutions.count).toBe(0);
+      const entry = await getApprovalEntry(mockMemory, memory);
+      // The persisted pair targets the outer resumable durable run; the inner
+      // suspended sub-agent run is preserved separately.
+      expect(entry.runId).toBe(outerRunId);
+      expect(entry.delegatedRunId).toBeDefined();
+      expect(entry.delegatedRunId).not.toBe(entry.runId);
+      expect(toolExecutions.count).toBe(0);
 
-    const resumed = await durableAgent.approveToolCall({
-      runId: entry.runId,
-      toolCallId: entry.toolCallId,
-      memory,
-    });
-    await drainAndAssertResumed(resumed, toolExecutions);
-  }, 30000);
+      const options = { runId: entry.runId, toolCallId: entry.toolCallId, memory };
+      const resumed = approved
+        ? await durableAgent.approveToolCall(options)
+        : await durableAgent.declineToolCall({ ...options, reason: DECLINE_REASON });
+      await drainAndAssertResumed(resumed, toolExecutions, approved);
+    },
+    30000,
+  );
 
   it('resumes the inner run when the delegation tool is itself approval-gated', async () => {
     const storage = new InMemoryStore();
@@ -343,42 +357,45 @@ describe('durable delegated approval persisted runId', () => {
     await drainAndAssertResumed(resumed, toolExecutions);
   }, 30000);
 
-  it('resumes with the persisted pair on a fresh process over the same storage', async () => {
-    const storage = new InMemoryStore();
-    const memoryStorage = new InMemoryStore();
-    const mockMemory1 = new MockMemory({ storage: memoryStorage });
-    const memory = { thread: 'durable-restart-thread', resource: 'durable-restart-resource' };
-    const toolExecutions = { count: 0 };
+  it.each([true, false])(
+    'resumes after restart with approved=%s',
+    async approved => {
+      const storage = new InMemoryStore();
+      const memoryStorage = new InMemoryStore();
+      const mockMemory1 = new MockMemory({ storage: memoryStorage });
+      const memory = { thread: 'durable-restart-thread', resource: 'durable-restart-resource' };
+      const toolExecutions = { count: 0 };
 
-    // ---- Process 1: run to the approval suspension ----
-    const durableAgent1 = createDurableAgent({ agent: buildSupervisor(mockMemory1, toolExecutions), pubsub });
-    new Mastra({ agents: { durableAgent: durableAgent1 }, storage, logger: false });
-    await runToApproval(durableAgent1, memory, storage);
+      // ---- Process 1: run to the approval suspension ----
+      const durableAgent1 = createDurableAgent({ agent: buildSupervisor(mockMemory1, toolExecutions), pubsub });
+      new Mastra({ agents: { durableAgent: durableAgent1 }, storage, logger: false });
+      await runToApproval(durableAgent1, memory, storage);
 
-    const entry = await getApprovalEntry(mockMemory1, memory);
-    expect(entry.delegatedRunId).toBeDefined();
+      const entry = await getApprovalEntry(mockMemory1, memory);
+      expect(entry.delegatedRunId).toBeDefined();
 
-    // ---- Simulate restart: clear process-local runtime state, then use fresh
-    // pubsub, memory/agent instances, and Mastra backed by the same persisted
-    // workflow and message storage. ----
-    globalRunRegistry.clear();
-    const pubsub2 = new EventEmitterPubSub();
-    const mockMemory2 = new MockMemory({ storage: memoryStorage });
-    try {
-      const durableAgent2 = createDurableAgent({
-        agent: buildSupervisor(mockMemory2, toolExecutions),
-        pubsub: pubsub2,
-      });
-      new Mastra({ agents: { durableAgent: durableAgent2 }, storage, logger: false });
+      // ---- Simulate restart: clear process-local runtime state, then use fresh
+      // pubsub, memory/agent instances, and Mastra backed by the same persisted
+      // workflow and message storage. ----
+      globalRunRegistry.clear();
+      const pubsub2 = new EventEmitterPubSub();
+      const mockMemory2 = new MockMemory({ storage: memoryStorage });
+      try {
+        const durableAgent2 = createDurableAgent({
+          agent: buildSupervisor(mockMemory2, toolExecutions),
+          pubsub: pubsub2,
+        });
+        new Mastra({ agents: { durableAgent: durableAgent2 }, storage, logger: false });
 
-      const resumed = await durableAgent2.approveToolCall({
-        runId: entry.runId,
-        toolCallId: entry.toolCallId,
-        memory,
-      });
-      await drainAndAssertResumed(resumed, toolExecutions);
-    } finally {
-      await pubsub2.close();
-    }
-  }, 30000);
+        const options = { runId: entry.runId, toolCallId: entry.toolCallId, memory };
+        const resumed = approved
+          ? await durableAgent2.approveToolCall(options)
+          : await durableAgent2.declineToolCall({ ...options, reason: DECLINE_REASON });
+        await drainAndAssertResumed(resumed, toolExecutions, approved);
+      } finally {
+        await pubsub2.close();
+      }
+    },
+    30000,
+  );
 });
