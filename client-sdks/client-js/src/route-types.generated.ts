@@ -5558,6 +5558,11 @@ export type PostAgentsAgentIdApproveToolCall_PathParams = GetAgentsAgentId_PathP
 export type PostAgentsAgentIdApproveToolCall_Body = {
   runId: string;
   model?: string | undefined;
+  clientTools?:
+    | {
+        [key: string]: unknown;
+      }
+    | undefined;
   requestContext?:
     | {
         [key: string]: unknown;
@@ -5707,6 +5712,11 @@ export type PostAgentsAgentIdDeclineToolCall_PathParams = GetAgentsAgentId_PathP
 export type PostAgentsAgentIdDeclineToolCall_Body = {
   runId: string;
   model?: string | undefined;
+  clientTools?:
+    | {
+        [key: string]: unknown;
+      }
+    | undefined;
   requestContext?:
     | {
         [key: string]: unknown;

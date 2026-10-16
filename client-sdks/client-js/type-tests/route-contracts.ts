@@ -1,7 +1,9 @@
+import type { ToolsInput } from '@mastra/core/agent';
 import type { FullOutput } from '@mastra/core/stream';
 import type { MastraClient } from '../src/client.js';
 import type {
   Body,
+  ClientToolsResolver,
   ClientRequest,
   Conversation,
   ConversationItemsPage,
@@ -267,6 +269,13 @@ type _AgentApproveToolCall = Expect<
 >;
 type _AgentDeclineToolCall = Expect<
   Equal<ReturnType<Agent['declineToolCallGenerate']>, Promise<FullOutput<undefined>>>
+>;
+type ApprovalMethod = 'approveToolCall' | 'declineToolCall' | 'approveToolCallGenerate' | 'declineToolCallGenerate';
+type _ApprovalClientTools = Expect<
+  Equal<
+    Pick<Parameters<Agent[ApprovalMethod]>[0], 'clientTools' | 'clientToolsResolver'>,
+    { clientTools?: ToolsInput; clientToolsResolver?: ClientToolsResolver }
+  >
 >;
 type _StartAsyncBody = Expect<
   Omit<Parameters<Run['startAsync']>[0], 'requestContext'> extends Omit<

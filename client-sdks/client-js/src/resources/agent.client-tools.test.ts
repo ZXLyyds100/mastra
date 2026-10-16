@@ -757,6 +757,114 @@ describe('Agent client-side tools', () => {
     },
   );
 
+  it.each([
+    ['approveToolCall', 'approve-tool-call'],
+    ['declineToolCall', 'decline-tool-call'],
+    ['approveToolCallGenerate', 'approve-tool-call-generate'],
+    ['declineToolCallGenerate', 'decline-tool-call-generate'],
+  ] as const)('%s: serializes client tools and prefers the current resolver', async (method, route) => {
+    const clientTools = {
+      weather: createTool({
+        id: 'weather',
+        description: 'Read the local weather',
+        inputSchema: z.object({ city: z.string() }),
+        outputSchema: z.object({ temperature: z.number() }),
+        execute: async () => ({ temperature: 20 }),
+      }),
+    };
+
+    for (const useResolver of [false, true]) {
+      const fetchMock = vi.mocked(global.fetch);
+      const requestIndex = fetchMock.mock.calls.length;
+      fetchMock.mockResolvedValueOnce(
+        method.endsWith('Generate')
+          ? Response.json({ text: 'done' })
+          : sseResponse([{ type: 'finish', payload: { stepResult: { reason: 'stop' } } }]),
+      );
+      const response = await agent[method]({
+        runId: 'run-1',
+        toolCallId: 'suspended-call',
+        clientTools: useResolver ? {} : clientTools,
+        ...(useResolver ? { clientToolsResolver: () => clientTools } : {}),
+      });
+      if ('processDataStream' in response) {
+        await response.processDataStream({ onChunk: async () => {} });
+      }
+
+      const [url, request] = fetchMock.mock.calls[requestIndex]!;
+      const body = JSON.parse(String(request?.body));
+      expect(url).toBe(`http://localhost:4111/api/agents/agent-1/${route}`);
+      expect(body.clientTools.weather).toMatchObject({
+        id: 'weather',
+        inputSchema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: { temperature: { type: 'number' } },
+          required: ['temperature'],
+        },
+      });
+      expect(body.clientTools.weather).not.toHaveProperty('execute');
+      expect(body).not.toHaveProperty('clientToolsResolver');
+    }
+  });
+
+  it.each(['approveToolCall', 'declineToolCall'] as const)(
+    '%s: executes a client tool and continues on the stream route, not the consumed approval route',
+    async method => {
+      const firstCycle = [
+        { type: 'tool-result', payload: { toolCallId: 'suspended-call', toolName: 'approvalTool', result: 'ok' } },
+        { type: 'step-start', payload: { messageId: 'm1' } },
+        { type: 'tool-call', payload: { toolCallId: 'client-call', toolName: 'weather', args: { city: 'Paris' } } },
+        { type: 'step-finish', payload: { stepResult: { isContinued: false } } },
+        { type: 'finish', payload: { stepResult: { reason: 'tool-calls' } } },
+      ];
+      const secondCycle = [
+        { type: 'step-start', payload: { messageId: 'm2' } },
+        { type: 'text-delta', payload: { text: 'Weather received' } },
+        { type: 'step-finish', payload: { stepResult: { isContinued: false } } },
+        { type: 'finish', payload: { stepResult: { reason: 'stop' } } },
+      ];
+      const execute = vi.fn(async () => ({ temperature: 20 }));
+      const weather = createTool({
+        id: 'weather',
+        description: 'Read the local weather',
+        inputSchema: z.object({ city: z.string() }),
+        execute,
+      });
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(sseResponse(firstCycle)).mockResolvedValueOnce(sseResponse(secondCycle));
+
+      const response = await agent[method]({
+        runId: 'run-1',
+        toolCallId: 'suspended-call',
+        memory: { thread: 'thread-1', resource: 'user-1' },
+        clientToolsResolver: () => ({ weather }),
+      });
+      const texts: string[] = [];
+      await response.processDataStream({
+        onChunk: async chunk => {
+          if (chunk.type === 'text-delta') texts.push(chunk.payload.text);
+        },
+      });
+
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(execute).toHaveBeenCalledWith({ city: 'Paris' }, expect.anything());
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1]![0]).toBe('http://localhost:4111/api/agents/agent-1/stream');
+      const continuation = JSON.parse(String(fetchMock.mock.calls[1]![1]?.body));
+      expect(continuation.memory).toEqual({ thread: 'thread-1', resource: 'user-1' });
+      expect(continuation.messages.at(-1)).toMatchObject({
+        role: 'tool',
+        content: [{ type: 'tool-result', toolCallId: 'client-call', result: { temperature: 20 } }],
+      });
+      expect(texts.join('')).toBe('Weather received');
+    },
+  );
+
   it('resumeStream: executes a client tool called after the resumed tool-result', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const firstCycle = [

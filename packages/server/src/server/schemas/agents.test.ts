@@ -2,10 +2,32 @@ import { describe, expect, it } from 'vitest';
 import {
   agentExecutionBodySchema,
   agentExecutionLegacyBodySchema,
+  approveToolCallBodySchema,
+  declineToolCallBodySchema,
   resumeStreamBodySchema,
   serializedAgentSchema,
   serializedToolSchema,
 } from './agents';
+
+describe('tool approval client tools', () => {
+  const body = { runId: 'run-1', toolCallId: 'call-1' };
+  const clientTools = {
+    weather: {
+      id: 'weather',
+      description: 'Read the local weather',
+      inputSchema: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] },
+    },
+  };
+
+  it.each([
+    ['approve', approveToolCallBodySchema],
+    ['decline', declineToolCallBodySchema],
+  ] as const)('preserves client tool definitions in %s requests', (_name, schema) => {
+    expect(schema.parse({ ...body, clientTools }).clientTools).toEqual(clientTools);
+    expect(schema.parse(body).clientTools).toBeUndefined();
+    expect(schema.safeParse({ ...body, clientTools: [] }).success).toBe(false);
+  });
+});
 
 describe('agent execution providerOptions', () => {
   const providerOptions = {

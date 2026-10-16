@@ -1747,6 +1747,41 @@ describe('Agent Routes Authorization', () => {
     });
   });
 
+  describe('tool approval client tools', () => {
+    it.each([
+      { route: APPROVE_TOOL_CALL_ROUTE, method: 'approveToolCall' },
+      { route: DECLINE_TOOL_CALL_ROUTE, method: 'declineToolCall' },
+      { route: APPROVE_TOOL_CALL_GENERATE_ROUTE, method: 'approveToolCallGenerate' },
+      { route: DECLINE_TOOL_CALL_GENERATE_ROUTE, method: 'declineToolCallGenerate' },
+    ] as const)('$method forwards validated client tools to the agent', async ({ route, method }) => {
+      const clientTools = {
+        weather: {
+          id: 'weather',
+          description: 'Read the local weather',
+          inputSchema: { type: 'object', properties: { city: { type: 'string' } } },
+        },
+      };
+      const execution = vi.spyOn(mockAgent as any, method).mockResolvedValue({
+        fullStream: new ReadableStream(),
+      });
+      const body = route.bodySchema.parse({
+        runId: 'test-run-id',
+        toolCallId: 'call-1',
+        clientTools,
+      });
+
+      await route.handler({
+        ...body,
+        mastra,
+        agentId: 'test-agent',
+        requestContext: createContextWithReservedKeys({}),
+        abortSignal: new AbortController().signal,
+      });
+
+      expect(execution).toHaveBeenCalledWith(expect.objectContaining({ clientTools }));
+    });
+  });
+
   describe('durable tool approval authorization', () => {
     const approvalRoutes = [
       { name: 'approve stream', route: APPROVE_TOOL_CALL_ROUTE, method: 'approveToolCall' },

@@ -559,10 +559,14 @@ Accepts optional filters (`threadId`, `resourceId`, `fromDate`, `toDate`) and pa
 
 Approve a pending tool call and return a continuation stream. Use this when you are rendering the resumed chunks from the approval response.
 
+If the suspended run uses client tools, pass `clientTools` again so the resumed model can call them. Alternatively, pass `clientToolsResolver: () => clientTools` to resolve the current tools for each request. When using conversation memory, also pass the same `memory` configuration as the original `stream()` call so client-tool continuations retain the conversation.
+
 ```typescript
 const response = await agent.approveToolCall({
   runId: 'run-123',
   toolCallId: 'tool-call-456',
+  clientTools: { colorChangeTool },
+  memory: { thread: 'thread-1', resource: 'resource-1' },
 })
 
 response.processDataStream({
@@ -592,6 +596,8 @@ Returns `{ accepted: true, runId: string, toolCallId?: string }`.
 ### `declineToolCall()`
 
 Decline a pending tool call and return a continuation stream. Use this when you are rendering the resumed chunks from the decline response. Pass an optional `reason` to tell the model why the call was rejected. The default is `Tool call was not approved by the user`.
+
+Like [`approveToolCall()`](#approvetoolcall), this method accepts `clientTools`, `clientToolsResolver`, and the original `memory` configuration for client-tool continuations.
 
 ```typescript
 const response = await agent.declineToolCall({
@@ -631,6 +637,8 @@ await response.processDataStream({
 
 Approve a pending tool call when using `generate()` (non-streaming). Returns the complete response:
 
+Pass `clientTools` or `clientToolsResolver` if the resumed model can call client tools. A client-tool call returns control with `finishReason: 'tool-calls'`; this method doesn't execute client tools locally.
+
 ```typescript
 const output = await agent.generate('Find user John', {
   requireToolApproval: true,
@@ -649,6 +657,8 @@ if (output.finishReason === 'suspended') {
 ### `declineToolCallGenerate()`
 
 Decline a pending tool call when using `generate()` (non-streaming). Returns the complete response:
+
+This method also accepts `clientTools` or `clientToolsResolver`. As with `approveToolCallGenerate()`, client-tool calls return control without executing the tools locally.
 
 ```typescript
 const output = await agent.generate('Find user John', {

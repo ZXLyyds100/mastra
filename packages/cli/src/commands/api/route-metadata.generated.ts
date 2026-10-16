@@ -324,6 +324,7 @@ export const API_ROUTE_METADATA = {
     ],
     "queryParams": [],
     "bodyParams": [
+      "clientTools",
       "format",
       "model",
       "modelSettings",
@@ -346,6 +347,7 @@ export const API_ROUTE_METADATA = {
     ],
     "queryParams": [],
     "bodyParams": [
+      "clientTools",
       "format",
       "model",
       "modelSettings",
