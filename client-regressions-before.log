@@ -1,0 +1,81 @@
+
+ RUN  v4.1.11 <repo>/client-sdks/client-js
+
+ ❯ |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts (54 tests | 6 failed | 48 skipped) 25ms
+     × approveToolCall: serializes client tools and prefers the current resolver 14ms
+     × declineToolCall: serializes client tools and prefers the current resolver 5ms
+     × approveToolCallGenerate: serializes client tools and prefers the current resolver 1ms
+     × declineToolCallGenerate: serializes client tools and prefers the current resolver 1ms
+     × approveToolCall: executes a client tool and continues on the stream route, not the consumed approval route 2ms
+     × declineToolCall: executes a client tool and continues on the stream route, not the consumed approval route 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts > Agent client-side tools > approveToolCall: serializes client tools and prefers the current resolver
+ FAIL  |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts > Agent client-side tools > declineToolCall: serializes client tools and prefers the current resolver
+ FAIL  |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts > Agent client-side tools > approveToolCallGenerate: serializes client tools and prefers the current resolver
+ FAIL  |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts > Agent client-side tools > declineToolCallGenerate: serializes client tools and prefers the current resolver
+AssertionError: expected { id: 'weather', …(4) } to match object { id: 'weather', …(2) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "id": "weather",
+    "inputSchema": {
+-     "properties": {
+-       "city": {
+-         "type": "string",
+-       },
+-     },
+-     "required": [
+-       "city",
+-     ],
+      "type": "object",
+    },
+    "outputSchema": {
+-     "properties": {
+-       "temperature": {
+-         "type": "number",
+-       },
+-     },
+-     "required": [
+-       "temperature",
+-     ],
+      "type": "object",
+    },
+  }
+
+ ❯ src/resources/agent.client-tools.test.ts:797:40
+    795|       const body = JSON.parse(String(request?.body));
+    796|       expect(url).toBe(`http://localhost:4111/api/agents/agent-1/${rou…
+    797|       expect(body.clientTools.weather).toMatchObject({
+       |                                        ^
+    798|         id: 'weather',
+    799|         inputSchema: {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts > Agent client-side tools > approveToolCall: executes a client tool and continues on the stream route, not the consumed approval route
+ FAIL  |unit:client-sdks/client-js| src/resources/agent.client-tools.test.ts > Agent client-side tools > declineToolCall: executes a client tool and continues on the stream route, not the consumed approval route
+AssertionError: expected "vi.fn()" to be called 1 times, but got 0 times
+ ❯ src/resources/agent.client-tools.test.ts:854:23
+    852|       });
+    853|
+    854|       expect(execute).toHaveBeenCalledTimes(1);
+       |                       ^
+    855|       expect(execute).toHaveBeenCalledWith({ city: 'Paris' }, expect.a…
+    856|       expect(fetchMock).toHaveBeenCalledTimes(2);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 48 skipped (54)
+   Start at  04:07:52
+   Duration  857ms (transform 548ms, setup 0ms, import 723ms, tests 25ms, environment 0ms)
+
+undefined
+<repo>/client-sdks/client-js:
+[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command failed with exit code 1: vitest run src/resources/agent.client-tools.test.ts -t 'serializes client tools and prefers|consumed approval route'

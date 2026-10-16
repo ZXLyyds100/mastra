@@ -1,0 +1,263 @@
+
+ RUN  v4.1.11 <repo>/packages/server
+
+ ❯ |unit:packages/server| src/server/schemas/agents.test.ts (19 tests | 2 failed | 17 skipped) 9ms
+     × preserves client tool definitions in approve requests 7ms
+     × preserves client tool definitions in decline requests 1ms
+ ❯ |unit:packages/server| src/server/handlers/agents.test.ts (207 tests | 4 failed | 203 skipped) 15ms
+       × 'approveToolCall' forwards validated client tools to the agent 11ms
+       × 'declineToolCall' forwards validated client tools to the agent 2ms
+       × 'approveToolCallGenerate' forwards validated client tools to the agent 1ms
+       × 'declineToolCallGenerate' forwards validated client tools to the agent 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit:packages/server| src/server/handlers/agents.test.ts > Agent Routes Authorization > tool approval client tools > 'approveToolCall' forwards validated client tools to the agent
+AssertionError: expected "approveToolCall" to be called with arguments: [ ObjectContaining{…} ]
+
+Received:
+
+  1st approveToolCall call:
+
+  [
+-   ObjectContaining {
+-     "clientTools": {
+-       "weather": {
+-         "description": "Read the local weather",
+-         "id": "weather",
+-         "inputSchema": {
+-           "properties": {
+-             "city": {
+-               "type": "string",
++   {
++     "abortSignal": AbortSignal {
++       Symbol(kEvents): undefined,
++       Symbol(events.maxEventTargetListeners): 0,
++       Symbol(events.maxEventTargetListenersWarned): false,
++       Symbol(kHandlers): undefined,
++       Symbol(kAborted): false,
++       Symbol(kReason): undefined,
++       Symbol(kComposite): false,
+      },
+-           },
+-           "type": "object",
+-         },
+-       },
+-     },
++     "requestContext": {},
++     "runId": "test-run-id",
++     "toolCallId": "call-1",
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ src/server/handlers/agents.test.ts:1781:25
+    1779|       });
+    1780|
+    1781|       expect(execution).toHaveBeenCalledWith(expect.objectContaining({…
+       |                         ^
+    1782|     });
+    1783|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  |unit:packages/server| src/server/handlers/agents.test.ts > Agent Routes Authorization > tool approval client tools > 'declineToolCall' forwards validated client tools to the agent
+AssertionError: expected "declineToolCall" to be called with arguments: [ ObjectContaining{…} ]
+
+Received:
+
+  1st declineToolCall call:
+
+  [
+-   ObjectContaining {
+-     "clientTools": {
+-       "weather": {
+-         "description": "Read the local weather",
+-         "id": "weather",
+-         "inputSchema": {
+-           "properties": {
+-             "city": {
+-               "type": "string",
++   {
++     "abortSignal": AbortSignal {
++       Symbol(kEvents): undefined,
++       Symbol(events.maxEventTargetListeners): 0,
++       Symbol(events.maxEventTargetListenersWarned): false,
++       Symbol(kHandlers): undefined,
++       Symbol(kAborted): false,
++       Symbol(kReason): undefined,
++       Symbol(kComposite): false,
+      },
+-           },
+-           "type": "object",
+-         },
+-       },
+-     },
++     "requestContext": {},
++     "runId": "test-run-id",
++     "toolCallId": "call-1",
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ src/server/handlers/agents.test.ts:1781:25
+    1779|       });
+    1780|
+    1781|       expect(execution).toHaveBeenCalledWith(expect.objectContaining({…
+       |                         ^
+    1782|     });
+    1783|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  |unit:packages/server| src/server/handlers/agents.test.ts > Agent Routes Authorization > tool approval client tools > 'approveToolCallGenerate' forwards validated client tools to the agent
+AssertionError: expected "approveToolCallGenerate" to be called with arguments: [ ObjectContaining{…} ]
+
+Received:
+
+  1st approveToolCallGenerate call:
+
+  [
+-   ObjectContaining {
+-     "clientTools": {
+-       "weather": {
+-         "description": "Read the local weather",
+-         "id": "weather",
+-         "inputSchema": {
+-           "properties": {
+-             "city": {
+-               "type": "string",
++   {
++     "abortSignal": AbortSignal {
++       Symbol(kEvents): undefined,
++       Symbol(events.maxEventTargetListeners): 0,
++       Symbol(events.maxEventTargetListenersWarned): false,
++       Symbol(kHandlers): undefined,
++       Symbol(kAborted): false,
++       Symbol(kReason): undefined,
++       Symbol(kComposite): false,
+      },
+-           },
+-           "type": "object",
+-         },
+-       },
+-     },
++     "requestContext": {},
++     "runId": "test-run-id",
++     "toolCallId": "call-1",
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ src/server/handlers/agents.test.ts:1781:25
+    1779|       });
+    1780|
+    1781|       expect(execution).toHaveBeenCalledWith(expect.objectContaining({…
+       |                         ^
+    1782|     });
+    1783|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  |unit:packages/server| src/server/handlers/agents.test.ts > Agent Routes Authorization > tool approval client tools > 'declineToolCallGenerate' forwards validated client tools to the agent
+AssertionError: expected "declineToolCallGenerate" to be called with arguments: [ ObjectContaining{…} ]
+
+Received:
+
+  1st declineToolCallGenerate call:
+
+  [
+-   ObjectContaining {
+-     "clientTools": {
+-       "weather": {
+-         "description": "Read the local weather",
+-         "id": "weather",
+-         "inputSchema": {
+-           "properties": {
+-             "city": {
+-               "type": "string",
++   {
++     "abortSignal": AbortSignal {
++       Symbol(kEvents): undefined,
++       Symbol(events.maxEventTargetListeners): 0,
++       Symbol(events.maxEventTargetListenersWarned): false,
++       Symbol(kHandlers): undefined,
++       Symbol(kAborted): false,
++       Symbol(kReason): undefined,
++       Symbol(kComposite): false,
+      },
+-           },
+-           "type": "object",
+-         },
+-       },
+-     },
++     "requestContext": {},
++     "runId": "test-run-id",
++     "toolCallId": "call-1",
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ src/server/handlers/agents.test.ts:1781:25
+    1779|       });
+    1780|
+    1781|       expect(execution).toHaveBeenCalledWith(expect.objectContaining({…
+       |                         ^
+    1782|     });
+    1783|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  |unit:packages/server| src/server/schemas/agents.test.ts > tool approval client tools > preserves client tool definitions in approve requests
+ FAIL  |unit:packages/server| src/server/schemas/agents.test.ts > tool approval client tools > preserves client tool definitions in decline requests
+AssertionError: expected undefined to deeply equal { weather: { id: 'weather', …(2) } }
+
+- Expected:
+{
+  "weather": {
+    "description": "Read the local weather",
+    "id": "weather",
+    "inputSchema": {
+      "properties": {
+        "city": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "city",
+      ],
+      "type": "object",
+    },
+  },
+}
+
++ Received:
+undefined
+
+ ❯ src/server/schemas/agents.test.ts:26:64
+     24|     ['decline', declineToolCallBodySchema],
+     25|   ] as const)('preserves client tool definitions in %s requests', (_na…
+     26|     expect(schema.parse({ ...body, clientTools }).clientTools).toEqual…
+       |                                                                ^
+     27|     expect(schema.parse(body).clientTools).toBeUndefined();
+     28|     expect(schema.safeParse({ ...body, clientTools: [] }).success).toB…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 220 skipped (226)
+   Start at  04:07:52
+   Duration  2.75s (transform 2.44s, setup 53ms, import 3.13s, tests 25ms, environment 0ms)
+
+undefined
+<repo>/packages/server:
+[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command failed with exit code 1: vitest run src/server/schemas/agents.test.ts src/server/handlers/agents.test.ts -t 'tool approval client tools'

@@ -1,0 +1,67 @@
+{
+  "method": "approveToolCall",
+  "text": "Weather received",
+  "toolErrors": [
+    {
+      "name": "ToolNotFoundError"
+    }
+  ],
+  "serverExecutions": 1,
+  "clientExecutions": 0,
+  "requests": [
+    {
+      "path": "/api/agents/payer/approve-tool-call",
+      "clientTools": []
+    }
+  ]
+}
+{
+  "method": "declineToolCall",
+  "text": "Weather received",
+  "toolErrors": [
+    {
+      "name": "ToolNotFoundError"
+    }
+  ],
+  "serverExecutions": 0,
+  "clientExecutions": 0,
+  "requests": [
+    {
+      "path": "/api/agents/payer/decline-tool-call",
+      "clientTools": []
+    }
+  ]
+}
+{
+  "method": "approveToolCallGenerate",
+  "finishReason": "stop",
+  "toolNames": [
+    "gated_action",
+    "weather"
+  ],
+  "serverExecutions": 1,
+  "clientExecutions": 0,
+  "requests": [
+    {
+      "path": "/api/agents/payer/approve-tool-call-generate",
+      "clientTools": []
+    }
+  ]
+}
+{
+  "method": "declineToolCallGenerate",
+  "finishReason": "stop",
+  "toolNames": [
+    "gated_action",
+    "weather"
+  ],
+  "serverExecutions": 0,
+  "clientExecutions": 0,
+  "requests": [
+    {
+      "path": "/api/agents/payer/decline-tool-call-generate",
+      "clientTools": []
+    }
+  ]
+}
+VERDICT FAIL (4/8 checks)

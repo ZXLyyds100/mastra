@@ -1,0 +1,157 @@
+{
+  "method": "approveToolCall",
+  "text": "Weather received",
+  "toolErrors": [],
+  "serverExecutions": 1,
+  "clientExecutions": 1,
+  "requests": [
+    {
+      "path": "/api/agents/payer/approve-tool-call",
+      "clientTools": [
+        "weather"
+      ],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "path": "/api/agents/payer/stream",
+      "clientTools": [
+        "weather"
+      ],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
+{
+  "method": "declineToolCall",
+  "text": "Weather received",
+  "toolErrors": [],
+  "serverExecutions": 0,
+  "clientExecutions": 1,
+  "requests": [
+    {
+      "path": "/api/agents/payer/decline-tool-call",
+      "clientTools": [
+        "weather"
+      ],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "path": "/api/agents/payer/stream",
+      "clientTools": [
+        "weather"
+      ],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
+{
+  "method": "approveToolCallGenerate",
+  "finishReason": "tool-calls",
+  "toolNames": [
+    "gated_action",
+    "weather"
+  ],
+  "serverExecutions": 1,
+  "clientExecutions": 0,
+  "requests": [
+    {
+      "path": "/api/agents/payer/approve-tool-call-generate",
+      "clientTools": [
+        "weather"
+      ],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
+{
+  "method": "declineToolCallGenerate",
+  "finishReason": "tool-calls",
+  "toolNames": [
+    "gated_action",
+    "weather"
+  ],
+  "serverExecutions": 0,
+  "clientExecutions": 0,
+  "requests": [
+    {
+      "path": "/api/agents/payer/decline-tool-call-generate",
+      "clientTools": [
+        "weather"
+      ],
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
+VERDICT PASS (8/8 checks)
